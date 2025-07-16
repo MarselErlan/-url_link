@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 320px;
+      min-height: 400px;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .container {
+      padding: 16px;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .status-card {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .status-dot.applied {
+      background: #4CAF50;
+    }
+    
+    .status-dot.not-applied {
+      background: #FF9800;
+    }
+    
+    .status-dot.unknown {
+      background: #9E9E9E;
+    }
+    
+    .url-info {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-bottom: 8px;
+      word-break: break-all;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .stat-card {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .stat-number {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    
+    .stat-label {
+      font-size: 10px;
+      opacity: 0.8;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #4CAF50;
+      color: white;
+    }
+    
+    .btn-secondary {
+      background: #FF9800;
+      color: white;
+    }
+    
+    .btn:hover {
+      opacity: 0.8;
+      transform: translateY(-1px);
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 20px;
+      opacity: 0.7;
+    }
+    
+    .error {
+      background: rgba(244, 67, 54, 0.1);
+      color: #ffcdd2;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    
+    .notes {
+      margin-top: 8px;
+    }
+    
+    .notes textarea {
+      width: 100%;
+      height: 60px;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 12px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    
+    .notes textarea::placeholder {
+      color: rgba(255, 255, 255, 0.7);
+    }
+    
+    .footer {
+      text-align: center;
+      font-size: 10px;
+      opacity: 0.6;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Job Tracker</h1>
+    </div>
+    
+    <div id="loading" class="loading">
+      Loading...
+    </div>
+    
+    <div id="error" class="error" style="display: none;"></div>
+    
+    <div id="content" style="display: none;">
+      <div class="status-card">
+        <div class="status-indicator">
+          <div id="statusDot" class="status-dot unknown"></div>
+          <div id="statusText">Checking status...</div>
+        </div>
+        <div id="urlInfo" class="url-info"></div>
+        <div id="lastUpdated" style="font-size: 10px; opacity: 0.6;"></div>
+      </div>
+      
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div id="totalUrls" class="stat-number">0</div>
+          <div class="stat-label">Total URLs</div>
+        </div>
+        <div class="stat-card">
+          <div id="appliedCount" class="stat-number">0</div>
+          <div class="stat-label">Applied</div>
+        </div>
+        <div class="stat-card">
+          <div id="notAppliedCount" class="stat-number">0</div>
+          <div class="stat-label">Not Applied</div>
+        </div>
+      </div>
+      
+      <div class="actions">
+        <button id="markApplied" class="btn btn-primary">Mark Applied</button>
+        <button id="markNotApplied" class="btn btn-secondary">Mark Not Applied</button>
+      </div>
+      
+      <div class="notes">
+        <textarea id="notesInput" placeholder="Add notes about this application..."></textarea>
+      </div>
+    </div>
+    
+    <div class="footer">
+      Real-time job application tracking
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html> 
