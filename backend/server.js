@@ -59,11 +59,10 @@ function extractDomain(url) {
 app.get('/api/status/:url', async (req, res) => {
   try {
     const url = decodeURIComponent(req.params.url);
-    const domain = extractDomain(url);
     
     const result = await pool.query(
-      'SELECT * FROM job_applications WHERE url = $1 OR domain = $2 ORDER BY created_at DESC LIMIT 1',
-      [url, domain]
+      'SELECT * FROM job_applications WHERE url = $1 ORDER BY created_at DESC LIMIT 1',
+      [url]
     );
     
     if (result.rows.length > 0) {
