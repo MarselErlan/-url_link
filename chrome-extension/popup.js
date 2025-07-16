@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'https://your-railway-app.up.railway.app'; // Replace with your actual Railway URL
+const API_BASE_URL = 'https://job-tracker-backend-production-acb1.up.railway.app'; // Production Railway URL
 
 // DOM Elements
 const loadingEl = document.getElementById('loading');

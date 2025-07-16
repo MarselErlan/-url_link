@@ -1,5 +1,5 @@
 // Background service worker for Chrome extension
-const API_BASE_URL = 'https://your-railway-app.up.railway.app'; // Replace with your Railway URL
+const API_BASE_URL = 'https://job-tracker-backend-production-acb1.up.railway.app'; // Production Railway URL
 
 // Listen for tab updates
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
