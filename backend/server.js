@@ -21,6 +21,7 @@ app.use(express.json());
 // Initialize database tables
 async function initDB() {
   try {
+    // First, create table with basic structure if it doesn't exist
     await pool.query(`
       CREATE TABLE IF NOT EXISTS job_applications (
         id SERIAL PRIMARY KEY,
@@ -33,10 +34,33 @@ async function initDB() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         notes TEXT
       );
-      
+    `);
+    
+    // Check if user_id column exists, and add it if it doesn't
+    const columnCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'job_applications' AND column_name = 'user_id';
+    `);
+    
+    if (columnCheck.rows.length === 0) {
+      console.log('Adding user_id column to existing table...');
+      // Add user_id column with a default value for existing rows
+      await pool.query(`
+        ALTER TABLE job_applications 
+        ADD COLUMN user_id VARCHAR(255) NOT NULL DEFAULT 'legacy_user';
+      `);
+      console.log('user_id column added successfully');
+    }
+    
+    // Create indexes if they don't exist
+    await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_url ON job_applications(url);
       CREATE INDEX IF NOT EXISTS idx_domain ON job_applications(domain);
+      CREATE INDEX IF NOT EXISTS idx_user_url ON job_applications(user_id, url);
+      CREATE INDEX IF NOT EXISTS idx_user_id ON job_applications(user_id);
     `);
+    
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);
@@ -59,10 +83,15 @@ function extractDomain(url) {
 app.get('/api/status/:url', async (req, res) => {
   try {
     const url = decodeURIComponent(req.params.url);
+    const userId = req.headers['x-user-id'];
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' });
+    }
     
     const result = await pool.query(
-      'SELECT * FROM job_applications WHERE url = $1 ORDER BY created_at DESC LIMIT 1',
-      [url]
+      'SELECT * FROM job_applications WHERE url = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1',
+      [url, userId]
     );
     
     if (result.rows.length > 0) {
@@ -86,12 +115,17 @@ app.get('/api/status/:url', async (req, res) => {
 app.post('/api/applications', async (req, res) => {
   try {
     const { url, title, applied, notes } = req.body;
+    const userId = req.headers['x-user-id'];
     const domain = extractDomain(url);
     
-    // Check if URL already exists
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' });
+    }
+    
+    // Check if URL already exists for this user
     const existingResult = await pool.query(
-      'SELECT id FROM job_applications WHERE url = $1',
-      [url]
+      'SELECT id FROM job_applications WHERE url = $1 AND user_id = $2',
+      [url, userId]
     );
     
     if (existingResult.rows.length > 0) {
@@ -99,9 +133,9 @@ app.post('/api/applications', async (req, res) => {
       const updateResult = await pool.query(
         `UPDATE job_applications 
          SET applied = $1, applied_date = $2, title = $3, notes = $4, updated_at = CURRENT_TIMESTAMP
-         WHERE url = $5 
+         WHERE url = $5 AND user_id = $6
          RETURNING *`,
-        [applied, applied ? new Date() : null, title, notes, url]
+        [applied, applied ? new Date() : null, title, notes, url, userId]
       );
       
       res.json({
@@ -112,10 +146,10 @@ app.post('/api/applications', async (req, res) => {
     } else {
       // Insert new record
       const insertResult = await pool.query(
-        `INSERT INTO job_applications (url, domain, title, applied, applied_date, notes)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO job_applications (user_id, url, domain, title, applied, applied_date, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [url, domain, title, applied, applied ? new Date() : null, notes]
+        [userId, url, domain, title, applied, applied ? new Date() : null, notes]
       );
       
       res.json({
@@ -133,13 +167,20 @@ app.post('/api/applications', async (req, res) => {
 // Get statistics
 app.get('/api/stats', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' });
+    }
+    
     const statsResult = await pool.query(`
       SELECT 
         COUNT(*) as total_urls,
         COUNT(CASE WHEN applied = true THEN 1 END) as applied_count,
         COUNT(CASE WHEN applied = false THEN 1 END) as not_applied_count
       FROM job_applications
-    `);
+      WHERE user_id = $1
+    `, [userId]);
     
     res.json(statsResult.rows[0]);
   } catch (error) {
