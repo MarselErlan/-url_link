@@ -111,6 +111,64 @@ app.get('/api/status/:url', async (req, res) => {
   }
 });
 
+// Check multiple URLs at once
+app.post('/api/status/batch', async (req, res) => {
+  try {
+    const { urls } = req.body;
+    const userId = req.headers['x-user-id'];
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' });
+    }
+    
+    if (!urls || !Array.isArray(urls)) {
+      return res.status(400).json({ error: 'URLs array required' });
+    }
+    
+    if (urls.length > 50) {
+      return res.status(400).json({ error: 'Maximum 50 URLs allowed per request' });
+    }
+    
+    const results = [];
+    
+    for (const url of urls) {
+      try {
+        const result = await pool.query(
+          'SELECT * FROM job_applications WHERE url = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1',
+          [url, userId]
+        );
+        
+        if (result.rows.length > 0) {
+          results.push({
+            url: url,
+            found: true,
+            application: result.rows[0]
+          });
+        } else {
+          results.push({
+            url: url,
+            found: false,
+            application: null
+          });
+        }
+      } catch (error) {
+        console.error(`Error checking URL ${url}:`, error);
+        results.push({
+          url: url,
+          found: false,
+          application: null,
+          error: 'Failed to check URL'
+        });
+      }
+    }
+    
+    res.json({ results });
+  } catch (error) {
+    console.error('Error checking batch status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Save or update application
 app.post('/api/applications', async (req, res) => {
   try {

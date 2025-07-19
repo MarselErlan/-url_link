@@ -6,7 +6,8 @@
   "permissions": [
     "activeTab",
     "storage",
-    "background"
+    "background",
+    "identity"
   ],
   "host_permissions": [
     "https://*/*",
@@ -24,16 +25,6 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Job Application Tracker",
-    "default_icon": {
-      "16": "icon16.png",
-      "48": "icon48.png",
-      "128": "icon128.png"
-    }
-  },
-  "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
+    "default_title": "Job Application Tracker"
   }
 } 

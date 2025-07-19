@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'https://your-railway-app.up.railway.app'; // Replace with your actual Railway URL
+const API_BASE_URL = 'https://job-tracker-backend-production-acb1.up.railway.app';
 
 // DOM Elements
 const loadingEl = document.getElementById('loading');
@@ -19,10 +19,43 @@ const notesInput = document.getElementById('notesInput');
 let currentUrl = '';
 let currentTitle = '';
 let currentApplication = null;
+let currentUserId = null;
+
+// Get Chrome user ID
+async function getChromeUserId() {
+  try {
+    // Try to get user profile info from Chrome
+    return new Promise((resolve) => {
+      chrome.identity.getProfileUserInfo((userInfo) => {
+        if (userInfo.email) {
+          resolve(userInfo.email);
+        } else {
+          // Fallback to a unique identifier based on Chrome profile
+          chrome.storage.local.get(['userId'], (result) => {
+            if (result.userId) {
+              resolve(result.userId);
+            } else {
+              // Generate a unique ID for this Chrome profile
+              const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+              chrome.storage.local.set({ userId: userId });
+              resolve(userId);
+            }
+          });
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error getting user ID:', error);
+    return 'anonymous_' + Date.now();
+  }
+}
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    // Get user ID first
+    currentUserId = await getChromeUserId();
+    
     // Get current tab info
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     currentUrl = tab.url;
@@ -37,6 +70,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Set up event listeners
     markAppliedBtn.addEventListener('click', () => markApplication(true));
     markNotAppliedBtn.addEventListener('click', () => markApplication(false));
+    
+    // Add refresh links button if it exists
+    const refreshLinksBtn = document.getElementById('refreshLinks');
+    if (refreshLinksBtn) {
+      refreshLinksBtn.addEventListener('click', refreshPageLinks);
+    }
     
     // Show content
     showContent();
@@ -72,7 +111,11 @@ function showContent() {
 async function loadApplicationStatus() {
   try {
     const encodedUrl = encodeURIComponent(currentUrl);
-    const response = await fetch(`${API_BASE_URL}/api/status/${encodedUrl}`);
+    const response = await fetch(`${API_BASE_URL}/api/status/${encodedUrl}`, {
+      headers: {
+        'x-user-id': currentUserId
+      }
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -99,7 +142,11 @@ async function loadApplicationStatus() {
 // Load statistics
 async function loadStats() {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/stats`);
+    const response = await fetch(`${API_BASE_URL}/api/stats`, {
+      headers: {
+        'x-user-id': currentUserId
+      }
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -157,7 +204,8 @@ async function markApplication(applied) {
     const response = await fetch(`${API_BASE_URL}/api/applications`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-user-id': currentUserId
       },
       body: JSON.stringify(requestData)
     });
@@ -198,6 +246,44 @@ async function markApplication(applied) {
     // Re-enable buttons
     markAppliedBtn.disabled = false;
     markNotAppliedBtn.disabled = false;
+  }
+}
+
+// Refresh link statuses on the current page
+async function refreshPageLinks() {
+  try {
+    const refreshBtn = document.getElementById('refreshLinks');
+    if (refreshBtn) {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Refreshing...';
+    }
+    
+    // Send message to content script to refresh links
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    await chrome.tabs.sendMessage(tab.id, {
+      action: 'refreshLinks'
+    });
+    
+    // Show success feedback
+    if (refreshBtn) {
+      refreshBtn.textContent = 'Refreshed!';
+      setTimeout(() => {
+        refreshBtn.textContent = 'Refresh Links';
+        refreshBtn.disabled = false;
+      }, 1000);
+    }
+    
+  } catch (error) {
+    console.error('Error refreshing links:', error);
+    const refreshBtn = document.getElementById('refreshLinks');
+    if (refreshBtn) {
+      refreshBtn.textContent = 'Error';
+      setTimeout(() => {
+        refreshBtn.textContent = 'Refresh Links';
+        refreshBtn.disabled = false;
+      }, 2000);
+    }
   }
 }
 

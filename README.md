@@ -1,159 +1,51 @@
 # Job Application Tracker Chrome Extension
 
-A Chrome extension that helps you track job applications in real-time with PostgreSQL backend integration. Never forget which jobs you've applied to!
+A Chrome extension that helps you track your job applications across various job sites. The extension now uses **link click tracking** instead of page reload tracking, making it more effective for modern web applications that use client-side routing.
 
 ## Features
 
-- **Real-time URL tracking**: Automatically detects when you visit job application pages
-- **Visual indicators**: Shows badges and indicators for applied/not applied jobs
-- **Statistics dashboard**: View total URLs, applied count, and not applied count
-- **Notes support**: Add notes to each job application
-- **PostgreSQL backend**: Persistent storage with Railway deployment
-- **Modern UI**: Clean, non-intrusive popup interface
-- **Auto-sync**: Updates status across all tabs in real-time
+### 🔗 Link Click Tracking
 
-## Project Structure
+- **Real-time link status**: When you click on job-related links, the extension immediately checks if you've already applied to that position
+- **Visual indicators**: Links show status badges (✓ Applied / ! Not Applied) when clicked
+- **Pre-check functionality**: Links are automatically checked when they become visible on the page
+- **Batch processing**: Efficiently checks multiple links at once using the batch API
 
-```
-url_link/
-├── backend/              # Node.js API server
-│   ├── server.js        # Main server file
-│   ├── package.json     # Dependencies
-│   └── railway.json     # Railway deployment config
-├── chrome-extension/     # Chrome extension files
-│   ├── manifest.json    # Extension manifest
-│   ├── popup.html       # Popup interface
-│   ├── popup.js         # Popup logic
-│   ├── background.js    # Background service worker
-│   ├── content.js       # Content script
-│   └── create-icons.js  # Icon generation script
-└── README.md
-```
+### 🎯 Smart Detection
 
-## Setup Instructions
+- Automatically detects job sites (LinkedIn, Indeed, Glassdoor, etc.)
+- Works with modern SPAs (Single Page Applications) that don't reload pages
+- Supports dynamic content loading and AJAX navigation
 
-### 1. Backend Deployment (Railway)
+### 📊 Application Management
 
-1. **Navigate to backend directory**:
+- Mark applications as "Applied" or "Not Applied"
+- Add notes to each application
+- View statistics and tracking history
+- Real-time badge updates in the extension icon
 
-   ```bash
-   cd backend
-   ```
+### 🔄 Manual Refresh
 
-2. **Install dependencies**:
+- "Refresh Links" button to manually check all visible links on the current page
+- Useful when new content loads dynamically
 
-   ```bash
-   npm install
-   ```
+## How It Works
 
-3. **Deploy to Railway**:
+### Old Logic (Page Reload Tracking)
 
-   - Go to [Railway.app](https://railway.app)
-   - Connect your GitHub repository
-   - Select the `backend` folder as the root directory
-   - Railway will automatically detect and deploy your Node.js app
-   - The PostgreSQL database is already configured in the connection string
+- ❌ Only worked when pages were reloaded
+- ❌ Missed navigation in SPAs like LinkedIn
+- ❌ Required full page refresh to detect status
 
-4. **Set environment variables** (optional):
+### New Logic (Link Click Tracking)
 
-   ```
-   DATABASE_URL=postgresql://postgres:OZNHVfQlRwGhcUBFmkVluOzTonqTpIKa@interchange.proxy.rlwy.net:30153/railway
-   PORT=3000
-   ```
-
-5. **Get your Railway URL**:
-   - After deployment, you'll get a URL like: `https://your-app-name.up.railway.app`
-
-### 2. Chrome Extension Setup
-
-1. **Update API URL**:
-
-   - Open `chrome-extension/popup.js`
-   - Replace `https://your-railway-app.up.railway.app` with your actual Railway URL
-   - Open `chrome-extension/background.js`
-   - Replace the same URL there
-
-2. **Create icon files**:
-
-   ```bash
-   cd chrome-extension
-   node create-icons.js
-   ```
-
-   Then convert the generated SVG files to PNG format (16x16, 48x48, 128x128)
-
-3. **Install Extension**:
-   - Open Chrome and go to `chrome://extensions/`
-   - Enable "Developer mode"
-   - Click "Load unpacked"
-   - Select the `chrome-extension` folder
-
-## Usage
-
-### Extension Features
-
-1. **Automatic Detection**: The extension automatically detects job sites and tracks URLs
-2. **Visual Badges**:
-
-   - ✓ Green badge = Applied
-   - ! Orange badge = Not Applied
-   - No badge = Not tracked
-
-3. **Popup Interface**:
-
-   - Click the extension icon to open the popup
-   - View current page status
-   - Mark as applied/not applied
-   - Add notes
-   - View statistics
-
-4. **Keyboard Shortcut**: Press `Ctrl+Shift+J` to open the popup quickly
-
-### API Endpoints
-
-- `GET /api/status/:url` - Get application status for a URL
-- `POST /api/applications` - Save/update application status
-- `GET /api/stats` - Get overall statistics
-- `GET /api/recent` - Get recent applications
-- `DELETE /api/applications/:id` - Delete application
-- `GET /health` - Health check
-
-### Database Schema
-
-```sql
-CREATE TABLE job_applications (
-  id SERIAL PRIMARY KEY,
-  url VARCHAR(2048) NOT NULL,
-  domain VARCHAR(255) NOT NULL,
-  title VARCHAR(500),
-  applied BOOLEAN DEFAULT false,
-  applied_date TIMESTAMP,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  notes TEXT
-);
-```
-
-## Development
-
-### Backend Development
-
-```bash
-cd backend
-npm install
-npm run dev  # Starts nodemon for development
-```
-
-### Extension Development
-
-1. Make changes to extension files
-2. Go to `chrome://extensions/`
-3. Click reload button on your extension
-4. Test changes
+- ✅ Detects clicks on any job-related links
+- ✅ Works with client-side routing and SPAs
+- ✅ Shows status immediately when clicking links
+- ✅ Pre-checks visible links automatically
+- ✅ Supports manual refresh of link statuses
 
 ## Supported Job Sites
-
-The extension automatically detects these job sites:
 
 - LinkedIn
 - Indeed
@@ -162,53 +54,129 @@ The extension automatically detects these job sites:
 - CareerBuilder
 - ZipRecruiter
 - Dice
-- Stack Overflow Jobs
-- AngelList/Wellfound
+- Stack Overflow
+- Angel.co / Wellfound
 - Lever
 - Greenhouse
 - Workday
-- And many more...
+- SmartRecruiters
+- BambooHR
+- Jobvite
+- Taleo
+- iCIMS
+- SuccessFactors
+- Recruitee
+- Breezy.hr
+- Personio
+- Teamtailor
+- Workable
+- Google Careers
+- Apple Jobs
+- Amazon Jobs
+- Microsoft Careers
+- Netflix Jobs
+- Uber Careers
+- Airbnb Careers
 
-## Configuration
+## Installation
 
-### Environment Variables
+1. Clone this repository
+2. Open Chrome and go to `chrome://extensions/`
+3. Enable "Developer mode"
+4. Click "Load unpacked" and select the `chrome-extension` folder
+5. The extension will appear in your toolbar
 
-- `DATABASE_URL`: PostgreSQL connection string
-- `PORT`: Server port (default: 3000)
-- `NODE_ENV`: Environment (production/development)
+## Usage
 
-### Extension Configuration
+1. **Browse job sites**: Visit any supported job site
+2. **Click links**: When you click on job posting links, status indicators will appear
+3. **Mark applications**: Use the extension popup to mark applications as applied/not applied
+4. **Add notes**: Include notes about your applications
+5. **Refresh links**: Use the "Refresh Links" button to check all visible links
 
-Update the `API_BASE_URL` in both `popup.js` and `background.js` to match your Railway deployment URL.
+## API Endpoints
 
-## Troubleshooting
+### Check Single URL Status
 
-1. **Extension not loading**: Check console for errors, ensure all files are present
-2. **API connection issues**: Verify Railway URL is correct and server is running
-3. **Database connection**: Ensure PostgreSQL connection string is valid
-4. **CORS issues**: Backend already configured with CORS, check if API URL is correct
+```
+GET /api/status/:url
+Headers: x-user-id: <user_id>
+```
 
-## Security Notes
+### Check Multiple URLs (Batch)
 
-- The extension only tracks HTTP/HTTPS URLs
-- All data is stored in your private PostgreSQL database
-- No data is shared with third parties
-- Extension requests minimal permissions
+```
+POST /api/status/batch
+Headers: x-user-id: <user_id>
+Body: { "urls": ["url1", "url2", ...] }
+```
+
+### Save Application
+
+```
+POST /api/applications
+Headers: x-user-id: <user_id>
+Body: {
+  "url": "job_url",
+  "title": "Job Title",
+  "applied": true/false,
+  "notes": "Optional notes"
+}
+```
+
+### Get Statistics
+
+```
+GET /api/stats
+Headers: x-user-id: <user_id>
+```
+
+## Technical Details
+
+### Content Script Features
+
+- **Event delegation**: Handles dynamically added links
+- **MutationObserver**: Watches for DOM changes
+- **Batch API**: Efficiently checks multiple URLs
+- **Visual feedback**: Animated status indicators
+- **Error handling**: Graceful fallbacks for failed requests
+
+### Background Script
+
+- **Minimal tracking**: Only updates badges for current page
+- **Reduced frequency**: Less frequent polling (10 minutes vs 5 minutes)
+- **Message handling**: Supports communication with content script
+
+### Backend Enhancements
+
+- **Batch endpoint**: New `/api/status/batch` for efficient multiple URL checking
+- **Rate limiting**: Maximum 50 URLs per batch request
+- **Error handling**: Individual URL failures don't break batch requests
+
+## Development
+
+### Backend Setup
+
+```bash
+cd backend
+npm install
+npm start
+```
+
+### Extension Development
+
+1. Make changes to files in `chrome-extension/`
+2. Reload the extension in `chrome://extensions/`
+3. Test on supported job sites
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
 ## License
 
-This project is open source and available under the MIT License.
-
-## Support
-
-For issues or questions:
-
-1. Check the troubleshooting section
-2. Verify all setup steps are completed
-3. Check browser console for errors
-4. Ensure Railway deployment is successful
-
----
-
-**Happy job hunting!** 🎯
-# -url_link
+MIT License - see LICENSE file for details.
