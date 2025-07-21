@@ -53,6 +53,20 @@ async function initDB() {
       console.log('user_id column added successfully');
     }
     
+    // Add job_id column if not exists
+    const jobIdColumnCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'job_applications' AND column_name = 'job_id';
+    `);
+    if (jobIdColumnCheck.rows.length === 0) {
+      console.log('Adding job_id column to existing table...');
+      await pool.query(`ALTER TABLE job_applications ADD COLUMN job_id VARCHAR(64);
+        `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_jobid ON job_applications(user_id, job_id);`);
+      console.log('job_id column added successfully');
+    }
+    
     // Create indexes if they don't exist
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_url ON job_applications(url);
@@ -77,6 +91,22 @@ function extractDomain(url) {
   }
 }
 
+// Helper function to extract LinkedIn job ID
+function extractLinkedInJobId(url) {
+  try {
+    const parsedUrl = new URL(url);
+    // Try to get from query param
+    const jobId = parsedUrl.searchParams.get('currentJobId');
+    if (jobId) return jobId;
+    // Try to get from path (e.g. /jobs/view/1234567890/)
+    const match = parsedUrl.pathname.match(/\/jobs\/view\/(\d+)/);
+    if (match) return match[1];
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // Routes
 
 // Get application status for a specific URL
@@ -84,15 +114,26 @@ app.get('/api/status/:url', async (req, res) => {
   try {
     const url = decodeURIComponent(req.params.url);
     const userId = req.headers['x-user-id'];
+    const jobId = extractLinkedInJobId(url);
     
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
     }
     
-    const result = await pool.query(
-      'SELECT * FROM job_applications WHERE url = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1',
-      [url, userId]
-    );
+    let result;
+    if (jobId) {
+      // LinkedIn: check by job_id
+      result = await pool.query(
+        'SELECT * FROM job_applications WHERE user_id = $1 AND job_id = $2 ORDER BY created_at DESC LIMIT 1',
+        [userId, jobId]
+      );
+    } else {
+      // Other: check by full URL
+      result = await pool.query(
+        'SELECT * FROM job_applications WHERE url = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1',
+        [url, userId]
+      );
+    }
     
     if (result.rows.length > 0) {
       res.json({
@@ -133,10 +174,19 @@ app.post('/api/status/batch', async (req, res) => {
     
     for (const url of urls) {
       try {
-        const result = await pool.query(
-          'SELECT * FROM job_applications WHERE url = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1',
-          [url, userId]
-        );
+        const jobId = extractLinkedInJobId(url);
+        let result;
+        if (jobId) {
+          result = await pool.query(
+            'SELECT * FROM job_applications WHERE user_id = $1 AND job_id = $2 ORDER BY created_at DESC LIMIT 1',
+            [userId, jobId]
+          );
+        } else {
+          result = await pool.query(
+            'SELECT * FROM job_applications WHERE url = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1',
+            [url, userId]
+          );
+        }
         
         if (result.rows.length > 0) {
           results.push({
@@ -175,26 +225,45 @@ app.post('/api/applications', async (req, res) => {
     const { url, title, applied, notes } = req.body;
     const userId = req.headers['x-user-id'];
     const domain = extractDomain(url);
+    const jobId = extractLinkedInJobId(url);
     
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
     }
     
-    // Check if URL already exists for this user
-    const existingResult = await pool.query(
-      'SELECT id FROM job_applications WHERE url = $1 AND user_id = $2',
-      [url, userId]
-    );
+    let existingResult;
+    if (jobId) {
+      existingResult = await pool.query(
+        'SELECT id FROM job_applications WHERE user_id = $1 AND job_id = $2',
+        [userId, jobId]
+      );
+    } else {
+      existingResult = await pool.query(
+        'SELECT id FROM job_applications WHERE url = $1 AND user_id = $2',
+        [url, userId]
+      );
+    }
     
     if (existingResult.rows.length > 0) {
       // Update existing record
-      const updateResult = await pool.query(
-        `UPDATE job_applications 
-         SET applied = $1, applied_date = $2, title = $3, notes = $4, updated_at = CURRENT_TIMESTAMP
-         WHERE url = $5 AND user_id = $6
-         RETURNING *`,
-        [applied, applied ? new Date() : null, title, notes, url, userId]
-      );
+      let updateResult;
+      if (jobId) {
+        updateResult = await pool.query(
+          `UPDATE job_applications 
+           SET applied = $1, applied_date = $2, title = $3, notes = $4, updated_at = CURRENT_TIMESTAMP, url = $5, domain = $6
+           WHERE user_id = $7 AND job_id = $8
+           RETURNING *`,
+          [applied, applied ? new Date() : null, title, notes, url, domain, userId, jobId]
+        );
+      } else {
+        updateResult = await pool.query(
+          `UPDATE job_applications 
+           SET applied = $1, applied_date = $2, title = $3, notes = $4, updated_at = CURRENT_TIMESTAMP
+           WHERE url = $5 AND user_id = $6
+           RETURNING *`,
+          [applied, applied ? new Date() : null, title, notes, url, userId]
+        );
+      }
       
       res.json({
         success: true,
@@ -203,12 +272,22 @@ app.post('/api/applications', async (req, res) => {
       });
     } else {
       // Insert new record
-      const insertResult = await pool.query(
-        `INSERT INTO job_applications (user_id, url, domain, title, applied, applied_date, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING *`,
-        [userId, url, domain, title, applied, applied ? new Date() : null, notes]
-      );
+      let insertResult;
+      if (jobId) {
+        insertResult = await pool.query(
+          `INSERT INTO job_applications (user_id, url, domain, title, applied, applied_date, notes, job_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING *`,
+          [userId, url, domain, title, applied, applied ? new Date() : null, notes, jobId]
+        );
+      } else {
+        insertResult = await pool.query(
+          `INSERT INTO job_applications (user_id, url, domain, title, applied, applied_date, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [userId, url, domain, title, applied, applied ? new Date() : null, notes]
+        );
+      }
       
       res.json({
         success: true,
