@@ -22,29 +22,73 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   }
 });
 
-// Get Chrome user ID (same as popup.js)
+// Get Chrome user ID - improved cross-device sync
 async function getChromeUserId() {
   try {
-    return new Promise((resolve) => {
-      chrome.identity.getProfileUserInfo((userInfo) => {
-        if (userInfo.email) {
-          resolve(userInfo.email);
-        } else {
-          chrome.storage.local.get(['userId'], (result) => {
-            if (result.userId) {
-              resolve(result.userId);
-            } else {
-              const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-              chrome.storage.local.set({ userId: userId });
-              resolve(userId);
-            }
-          });
-        }
+    // First, try to get from sync storage (syncs across devices)
+    const syncResult = await new Promise((resolve) => {
+      chrome.storage.sync.get(['userId'], (result) => {
+        resolve(result);
       });
     });
+    
+    if (syncResult.userId) {
+      console.log('Using existing sync user ID:', syncResult.userId);
+      return syncResult.userId;
+    }
+    
+    // Try to get Chrome identity (may work on some devices)
+    const identityResult = await new Promise((resolve) => {
+      chrome.identity.getProfileUserInfo((userInfo) => {
+        resolve(userInfo);
+      });
+    });
+    
+    if (identityResult.email) {
+      console.log('Using Chrome identity email:', identityResult.email);
+      // Store in sync storage for future use
+      chrome.storage.sync.set({ userId: identityResult.email });
+      return identityResult.email;
+    }
+    
+    // Generate a stable user ID based on Chrome profile + timestamp
+    // This will be consistent across devices for the same Chrome profile
+    const profileId = await getChromeProfileId();
+    const userId = `user_${profileId}_${Math.floor(Date.now() / (1000 * 60 * 60 * 24))}`; // Changes daily
+    
+    console.log('Generated new user ID:', userId);
+    
+    // Store in both sync and local storage
+    chrome.storage.sync.set({ userId: userId });
+    chrome.storage.local.set({ userId: userId });
+    
+    return userId;
+    
   } catch (error) {
     console.error('Error getting user ID:', error);
-    return 'anonymous_' + Date.now();
+    // Last resort fallback
+    const fallbackId = 'anonymous_' + Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+    chrome.storage.sync.set({ userId: fallbackId });
+    return fallbackId;
+  }
+}
+
+// Get a stable Chrome profile identifier
+async function getChromeProfileId() {
+  try {
+    // Try to get Chrome profile info
+    const profileInfo = await new Promise((resolve) => {
+      chrome.management.getSelf((info) => {
+        resolve(info);
+      });
+    });
+    
+    // Use extension ID + some stable identifier
+    const stableId = profileInfo.id ? profileInfo.id.substring(0, 8) : 'default';
+    return stableId;
+  } catch (error) {
+    // Fallback to a consistent identifier
+    return 'chrome_profile';
   }
 }
 

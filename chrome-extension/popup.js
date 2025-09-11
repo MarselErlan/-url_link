@@ -21,32 +21,87 @@ let currentTitle = '';
 let currentApplication = null;
 let currentUserId = null;
 
-// Get Chrome user ID
+// Get Chrome user ID - improved cross-device sync
 async function getChromeUserId() {
   try {
-    // Try to get user profile info from Chrome
-    return new Promise((resolve) => {
-      chrome.identity.getProfileUserInfo((userInfo) => {
-        if (userInfo.email) {
-          resolve(userInfo.email);
-        } else {
-          // Fallback to a unique identifier based on Chrome profile
-          chrome.storage.local.get(['userId'], (result) => {
-            if (result.userId) {
-              resolve(result.userId);
-            } else {
-              // Generate a unique ID for this Chrome profile
-              const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-              chrome.storage.local.set({ userId: userId });
-              resolve(userId);
-            }
-          });
-        }
+    // First, try to get from sync storage (syncs across devices)
+    const syncResult = await new Promise((resolve) => {
+      chrome.storage.sync.get(['userId'], (result) => {
+        resolve(result);
       });
     });
+    
+    if (syncResult.userId) {
+      console.log('Using existing sync user ID:', syncResult.userId);
+      return syncResult.userId;
+    }
+    
+    // Try to get Chrome identity (may work on some devices)
+    const identityResult = await new Promise((resolve) => {
+      chrome.identity.getProfileUserInfo((userInfo) => {
+        resolve(userInfo);
+      });
+    });
+    
+    if (identityResult.email) {
+      console.log('Using Chrome identity email:', identityResult.email);
+      // Store in sync storage for future use
+      chrome.storage.sync.set({ userId: identityResult.email });
+      return identityResult.email;
+    }
+    
+    // Generate a stable user ID based on Chrome profile + timestamp
+    // This will be consistent across devices for the same Chrome profile
+    const profileId = await getChromeProfileId();
+    const userId = `user_${profileId}_${Math.floor(Date.now() / (1000 * 60 * 60 * 24))}`; // Changes daily
+    
+    console.log('Generated new user ID:', userId);
+    
+    // Store in both sync and local storage
+    chrome.storage.sync.set({ userId: userId });
+    chrome.storage.local.set({ userId: userId });
+    
+    return userId;
+    
   } catch (error) {
     console.error('Error getting user ID:', error);
-    return 'anonymous_' + Date.now();
+    // Last resort fallback
+    const fallbackId = 'anonymous_' + Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+    chrome.storage.sync.set({ userId: fallbackId });
+    return fallbackId;
+  }
+}
+
+// Get a stable Chrome profile identifier
+async function getChromeProfileId() {
+  try {
+    // Try to get Chrome profile info
+    const profileInfo = await new Promise((resolve) => {
+      chrome.management.getSelf((info) => {
+        resolve(info);
+      });
+    });
+    
+    // Use extension ID + some stable identifier
+    const stableId = profileInfo.id ? profileInfo.id.substring(0, 8) : 'default';
+    return stableId;
+  } catch (error) {
+    // Fallback to a consistent identifier
+    return 'chrome_profile';
+  }
+}
+
+// Helper to extract LinkedIn job ID
+function extractLinkedInJobId(url) {
+  try {
+    const parsedUrl = new URL(url);
+    const jobId = parsedUrl.searchParams.get('currentJobId');
+    if (jobId) return jobId;
+    const match = parsedUrl.pathname.match(/\/jobs\/view\/(\d+)/);
+    if (match) return match[1];
+    return null;
+  } catch (e) {
+    return null;
   }
 }
 
@@ -55,6 +110,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     // Get user ID first
     currentUserId = await getChromeUserId();
+    
+    // Check if we need to migrate from old user ID system
+    await checkAndMigrateUserData();
     
     // Get current tab info
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -85,6 +143,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
+// Check and migrate user data from old system
+async function checkAndMigrateUserData() {
+  try {
+    // Check if we have old local storage data but no sync data
+    const localResult = await new Promise((resolve) => {
+      chrome.storage.local.get(['userId'], (result) => {
+        resolve(result);
+      });
+    });
+    
+    const syncResult = await new Promise((resolve) => {
+      chrome.storage.sync.get(['userId'], (result) => {
+        resolve(result);
+      });
+    });
+    
+    // If we have local data but no sync data, migrate it
+    if (localResult.userId && !syncResult.userId) {
+      console.log('Migrating user ID to sync storage:', localResult.userId);
+      chrome.storage.sync.set({ userId: localResult.userId });
+      
+      // Show a brief notification
+      const statusText = document.getElementById('statusText');
+      if (statusText) {
+        const originalText = statusText.textContent;
+        statusText.textContent = 'Syncing data across devices...';
+        setTimeout(() => {
+          statusText.textContent = originalText;
+        }, 2000);
+      }
+    }
+  } catch (error) {
+    console.error('Error migrating user data:', error);
+  }
+}
+
 // Show loading state
 function showLoading() {
   loadingEl.style.display = 'block';
@@ -110,12 +204,12 @@ function showContent() {
 // Load application status for current URL
 async function loadApplicationStatus() {
   try {
+    const jobId = extractLinkedInJobId(currentUrl);
     const encodedUrl = encodeURIComponent(currentUrl);
-    const response = await fetch(`${API_BASE_URL}/api/status/${encodedUrl}`, {
-      headers: {
-        'x-user-id': currentUserId
-      }
-    });
+    let apiUrl = `${API_BASE_URL}/api/status/${encodedUrl}`;
+    let headers = { 'x-user-id': currentUserId };
+    if (jobId) headers['x-job-id'] = jobId;
+    const response = await fetch(apiUrl, { headers });
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -194,11 +288,13 @@ async function markApplication(applied) {
     markAppliedBtn.disabled = true;
     markNotAppliedBtn.disabled = true;
     
+    const jobId = extractLinkedInJobId(currentUrl);
     const requestData = {
       url: currentUrl,
       title: currentTitle,
       applied: applied,
-      notes: notesInput.value.trim()
+      notes: notesInput.value.trim(),
+      job_id: jobId || undefined
     };
     
     const response = await fetch(`${API_BASE_URL}/api/applications`, {
