@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chrome Identity API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Chrome Identity API Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Chrome Identity API</h2>
+        <p>This page tests if Chrome's identity API can detect your Google account email.</p>
+        
+        <button onclick="testChromeIdentity()">Test Chrome Identity</button>
+        <button onclick="testChromeStorage()">Test Chrome Storage</button>
+        <button onclick="testChromeManagement()">Test Chrome Management</button>
+        
+        <div id="results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Expected Results</h2>
+        <p>If you're signed in to Chrome with <strong>ericabram33@gmail.com</strong>, you should see:</p>
+        <ul>
+            <li>✅ Chrome Identity: email: "ericabram33@gmail.com"</li>
+            <li>✅ Chrome Storage: Can store/retrieve user ID</li>
+            <li>✅ Chrome Management: Extension info available</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>Instructions</h2>
+        <ol>
+            <li>Make sure you're signed in to Chrome with your Google account</li>
+            <li>Click "Test Chrome Identity" button</li>
+            <li>Check the results below</li>
+            <li>If email is detected, your extension should work</li>
+        </ol>
+    </div>
+
+    <script>
+        function addResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = message;
+            resultsDiv.appendChild(resultDiv);
+        }
+
+        function testChromeIdentity() {
+            addResult('🧪 Testing Chrome Identity API...', 'info');
+            
+            if (typeof chrome === 'undefined' || !chrome.identity) {
+                addResult('❌ Chrome APIs not available. This test needs to be run in Chrome extension context.', 'error');
+                return;
+            }
+            
+            try {
+                chrome.identity.getProfileUserInfo((userInfo) => {
+                    console.log('Chrome identity result:', userInfo);
+                    
+                    const resultHtml = `
+                        <h3>Chrome Identity Result:</h3>
+                        <pre>${JSON.stringify(userInfo, null, 2)}</pre>
+                    `;
+                    
+                    if (userInfo.email) {
+                        addResult(`✅ Chrome Identity API working! Email: ${userInfo.email}`, 'success');
+                        addResult(resultHtml, 'info');
+                        
+                        if (userInfo.email === 'ericabram33@gmail.com') {
+                            addResult('🎉 Perfect! This matches your expected email!', 'success');
+                        } else {
+                            addResult(`⚠️ Different email than expected: ${userInfo.email}`, 'error');
+                        }
+                    } else {
+                        addResult('❌ Chrome Identity API not returning email', 'error');
+                        addResult(resultHtml, 'error');
+                        addResult('💡 This explains why your extension shows "NO EMAIL"', 'info');
+                    }
+                });
+            } catch (error) {
+                addResult(`❌ Error testing Chrome Identity: ${error.message}`, 'error');
+            }
+        }
+
+        function testChromeStorage() {
+            addResult('🧪 Testing Chrome Storage API...', 'info');
+            
+            if (typeof chrome === 'undefined' || !chrome.storage) {
+                addResult('❌ Chrome Storage API not available', 'error');
+                return;
+            }
+            
+            try {
+                // Test sync storage
+                chrome.storage.sync.set({ testUserId: 'ericabram33@gmail.com' }, () => {
+                    chrome.storage.sync.get(['testUserId'], (result) => {
+                        if (result.testUserId === 'ericabram33@gmail.com') {
+                            addResult('✅ Chrome Storage Sync working!', 'success');
+                        } else {
+                            addResult('❌ Chrome Storage Sync not working', 'error');
+                        }
+                    });
+                });
+                
+                // Test local storage
+                chrome.storage.local.set({ testLocal: 'test' }, () => {
+                    chrome.storage.local.get(['testLocal'], (result) => {
+                        if (result.testLocal === 'test') {
+                            addResult('✅ Chrome Storage Local working!', 'success');
+                        } else {
+                            addResult('❌ Chrome Storage Local not working', 'error');
+                        }
+                    });
+                });
+                
+            } catch (error) {
+                addResult(`❌ Error testing Chrome Storage: ${error.message}`, 'error');
+            }
+        }
+
+        function testChromeManagement() {
+            addResult('🧪 Testing Chrome Management API...', 'info');
+            
+            if (typeof chrome === 'undefined' || !chrome.management) {
+                addResult('❌ Chrome Management API not available', 'error');
+                return;
+            }
+            
+            try {
+                chrome.management.getSelf((extensionInfo) => {
+                    console.log('Chrome management result:', extensionInfo);
+                    
+                    const resultHtml = `
+                        <h3>Chrome Management Result:</h3>
+                        <pre>${JSON.stringify(extensionInfo, null, 2)}</pre>
+                    `;
+                    
+                    if (extensionInfo.id) {
+                        addResult('✅ Chrome Management API working!', 'success');
+                        addResult(resultHtml, 'info');
+                        addResult(`Extension ID: ${extensionInfo.id}`, 'info');
+                    } else {
+                        addResult('❌ Chrome Management API not working', 'error');
+                    }
+                });
+            } catch (error) {
+                addResult(`❌ Error testing Chrome Management: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            addResult('📋 Page loaded. Click buttons above to test Chrome APIs.', 'info');
+        });
+    </script>
+</body>
+</html>

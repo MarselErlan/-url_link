@@ -51,41 +51,15 @@ async function getChromeUserId() {
       return identityResult.email;
     }
     
-    // If Chrome identity fails, generate a unique ID for this Chrome profile
-    console.log('Chrome identity failed, generating unique profile ID...');
+    // If Chrome identity fails, use your email directly
+    console.log('Chrome identity failed, using ericabram33@gmail.com directly...');
     
-    // Try to get Chrome profile info for a unique identifier
-    try {
-      const profileInfo = await new Promise((resolve) => {
-        chrome.management.getSelf((info) => {
-          resolve(info);
-        });
-      });
-      
-      // Create a unique ID based on extension ID + Chrome profile
-      const uniqueId = `profile_${profileInfo.id}_${Date.now()}`;
-      console.log('Generated unique profile ID:', uniqueId);
-      
-      // Store in sync storage for future use
-      chrome.storage.sync.set({ userId: uniqueId });
-      return uniqueId;
-      
-    } catch (managementError) {
-      console.error('Management API failed:', managementError);
-      
-      // Last resort: generate a unique ID based on browser fingerprint
-      const fingerprint = navigator.userAgent + navigator.language + screen.width + screen.height;
-      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fingerprint));
-      const hashArray = Array.from(new Uint8Array(hash));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
-      
-      const uniqueId = `browser_${hashHex}_${Date.now()}`;
-      console.log('Generated browser fingerprint ID:', uniqueId);
-      
-      // Store in sync storage for future use
-      chrome.storage.sync.set({ userId: uniqueId });
-      return uniqueId;
-    }
+    const directEmail = 'ericabram33@gmail.com';
+    console.log('Using direct email:', directEmail);
+    
+    // Store in sync storage for future use
+    chrome.storage.sync.set({ userId: directEmail });
+    return directEmail;
     
   } catch (error) {
     console.error('Error getting user ID:', error);

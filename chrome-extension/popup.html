@@ -28,6 +28,32 @@
       font-weight: 600;
     }
     
+    .user-info {
+      margin-top: 8px;
+    }
+    
+    .login-section {
+      text-align: center;
+    }
+    
+    .user-section {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-top: 8px;
+    }
+    
+    .user-email {
+      font-size: 12px;
+      opacity: 0.9;
+      flex: 1;
+      margin-right: 8px;
+      word-break: break-all;
+    }
+    
     .status-card {
       background: rgba(255, 255, 255, 0.1);
       border-radius: 12px;
@@ -180,6 +206,15 @@
   <div class="container">
     <div class="header">
       <h1>Job Tracker</h1>
+      <div id="userInfo" class="user-info">
+        <div id="loginSection" class="login-section">
+          <button id="loginBtn" class="btn btn-primary">Sign in with Google</button>
+        </div>
+        <div id="userSection" class="user-section" style="display: none;">
+          <span id="userEmail" class="user-email"></span>
+          <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+        </div>
+      </div>
     </div>
     
     <div id="loading" class="loading">
