@@ -53,6 +53,23 @@ async function initDB() {
       console.log('user_id column added successfully');
     }
     
+    // Check if we need to migrate existing data to ericabram33@gmail.com
+    const migrationCheck = await pool.query(`
+      SELECT COUNT(*) as count 
+      FROM job_applications 
+      WHERE user_id = 'legacy_user' OR user_id IS NULL OR user_id = ''
+    `);
+    
+    if (parseInt(migrationCheck.rows[0].count) > 0) {
+      console.log('Migrating existing data to ericabram33@gmail.com...');
+      await pool.query(`
+        UPDATE job_applications 
+        SET user_id = 'ericabram33@gmail.com'
+        WHERE user_id = 'legacy_user' OR user_id IS NULL OR user_id = ''
+      `);
+      console.log('Data migration completed');
+    }
+    
     // Add job_id column if not exists
     const jobIdColumnCheck = await pool.query(`
       SELECT column_name 

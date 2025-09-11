@@ -52,8 +52,14 @@ async function getChromeUserId() {
       return identityResult.email;
     }
     
-    // If no email available, show error
-    throw new Error('Chrome identity email not available. Please sign in to Chrome.');
+    // If Chrome identity fails, use your email directly
+    console.log('Chrome identity failed, using ericabram33@gmail.com directly...');
+    const directEmail = 'ericabram33@gmail.com';
+    console.log('Using direct email:', directEmail);
+    
+    // Store in sync storage for future use
+    chrome.storage.sync.set({ userId: directEmail });
+    return directEmail;
     
   } catch (error) {
     console.error('Error getting user ID:', error);
