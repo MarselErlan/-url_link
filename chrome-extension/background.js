@@ -22,7 +22,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   }
 });
 
-// Get Chrome user ID - improved cross-device sync
+// Get Chrome user ID - simplified to use only Chrome identity email
 async function getChromeUserId() {
   try {
     // First, try to get from sync storage (syncs across devices)
@@ -37,7 +37,7 @@ async function getChromeUserId() {
       return syncResult.userId;
     }
     
-    // Try to get Chrome identity (may work on some devices)
+    // Get Chrome identity email
     const identityResult = await new Promise((resolve) => {
       chrome.identity.getProfileUserInfo((userInfo) => {
         resolve(userInfo);
@@ -51,44 +51,12 @@ async function getChromeUserId() {
       return identityResult.email;
     }
     
-    // Generate a stable user ID based on Chrome profile + timestamp
-    // This will be consistent across devices for the same Chrome profile
-    const profileId = await getChromeProfileId();
-    const userId = `user_${profileId}_${Math.floor(Date.now() / (1000 * 60 * 60 * 24))}`; // Changes daily
-    
-    console.log('Generated new user ID:', userId);
-    
-    // Store in both sync and local storage
-    chrome.storage.sync.set({ userId: userId });
-    chrome.storage.local.set({ userId: userId });
-    
-    return userId;
+    // If no email available, show error
+    throw new Error('Chrome identity email not available. Please sign in to Chrome.');
     
   } catch (error) {
     console.error('Error getting user ID:', error);
-    // Last resort fallback
-    const fallbackId = 'anonymous_' + Math.floor(Date.now() / (1000 * 60 * 60 * 24));
-    chrome.storage.sync.set({ userId: fallbackId });
-    return fallbackId;
-  }
-}
-
-// Get a stable Chrome profile identifier
-async function getChromeProfileId() {
-  try {
-    // Try to get Chrome profile info
-    const profileInfo = await new Promise((resolve) => {
-      chrome.management.getSelf((info) => {
-        resolve(info);
-      });
-    });
-    
-    // Use extension ID + some stable identifier
-    const stableId = profileInfo.id ? profileInfo.id.substring(0, 8) : 'default';
-    return stableId;
-  } catch (error) {
-    // Fallback to a consistent identifier
-    return 'chrome_profile';
+    throw new Error('Unable to get user identity. Please ensure you are signed in to Chrome.');
   }
 }
 
